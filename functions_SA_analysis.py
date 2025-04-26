@@ -84,6 +84,7 @@ def solve_reaction_factor(tyre_code, mtom, mlm, n_tyres, x_a, tyre_csv):
             "V [m/s]": V,
             "mass [kg]": m,
             "lambda": λ,
+            "x_a [m]": x_a,
             "x_t [m]": x_t
         })
     return results
