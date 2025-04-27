@@ -93,6 +93,7 @@ def oleo_pneumatic_sizing(
     static_pressure,
     num_gear_legs,
     max_load_factor,
+    limit_stroke_m,
     gravity=9.81
 ):
     """
@@ -109,39 +110,39 @@ def oleo_pneumatic_sizing(
     breakout_load = breakout_load_fraction * force_per_gear_landing
 
     # Calculate piston area
-    A_piston = force_per_gear_ramp/static_pressure
-    d_piston = (4 * A_piston / math.pi)**0.5
+    A_piston = force_per_gear_ramp / static_pressure
+    d_piston = (4 * A_piston / math.pi) ** 0.5
 
-    # Correct piston area
-    # Load the seal database (inches)
+    # Load the seal database
     seal_db = pd.read_csv("data/AS4716_seal_db.csv")
 
-    # Example piston diameter from previous calculation (in meters)
-    d_piston_in = d_piston * 39.3701  # convert meters to inches
-
+    # Convert piston diameter to inches
+    d_piston_in = d_piston * 39.3701
 
     # Find first seal where B dimension is larger than d_piston
     matching_seal = seal_db[seal_db["C"] > d_piston_in].iloc[0]
 
     # Extract relevant data
-    selected_gland_number = matching_seal["gland_dash_number"]
     selected_B_in = matching_seal["C"]
-
     selected_B = selected_B_in / 39.3701  # convert back to meters
     d_corrected = selected_B
 
     # Calculate corrected static pressure
-    A_piston_corrected = (np.pi*d_corrected**2)/4
-    P_static_corrected = force_per_gear_ramp/A_piston_corrected
+    A_piston_corrected = (np.pi * d_corrected ** 2) / 4
+    P_static_corrected = force_per_gear_ramp / A_piston_corrected
 
     # Breakout pressure
-    P_0 = breakout_load/A_piston_corrected
+    P_0 = breakout_load / A_piston_corrected
     P_1 = P_static_corrected
-    P_2 = max_load_factor*force_per_gear_ramp/A_piston_corrected
+    P_2 = max_load_factor * force_per_gear_ramp / A_piston_corrected
+
+    # Maximum loads
+    P_max_ground_handling = max_load_factor * P_1
+    P_max_landing = reaction_factor * P_1
 
     # Fully extended volume
-    V_0 = (A_piston_corrected*shock_absorber_travel_m*P_2)/(P_2 - P_0)
-    V_2 = V_0 - (A_piston_corrected*shock_absorber_travel_m)
+    V_0 = (A_piston_corrected * shock_absorber_travel_m * P_2) / (P_2 - P_0)
+    V_2 = V_0 - (A_piston_corrected * shock_absorber_travel_m)
 
     # Static position volume and compression
     V_1 = V_0 * P_0 / P_1
@@ -149,22 +150,47 @@ def oleo_pneumatic_sizing(
 
     # Generate spring curve (isothermal)
     n_points = 100
-    x = np.linspace(0, shock_absorber_travel_m, n_points)  # stroke
-    V = V_0 - A_piston_corrected * x  # volume during compression
-    P = P_0 * V_0 / V  # pressure during compression
+    x = np.linspace(0, shock_absorber_travel_m, n_points)
+    V = V_0 - A_piston_corrected * x
+    P = P_0 * V_0 / V
 
-    print('Compression ratio: %.2f'%(V_0/V_2))
+    print('Compression ratio: %.2f' % (V_0 / V_2))
 
     # Plot
-    plt.figure(figsize=(8, 5))
-    plt.plot(x * 1000, P / 1e6, label="Spring Curve")
-    plt.axvline(x=x_static * 1000, color='red', linestyle='--', label=f"Static Compression\n({x_static * 1000:.1f} mm)")
+    plt.figure(figsize=(9, 6))
+    plt.plot(x * 1000, P / 1e6)
+    plt.axvline(x=x_static * 1000, color='red', linestyle='--')
     plt.text(x_static * 1000 + 10, (P_1 / 1e6) / 2, f"Static Pos.\n{x_static * 1000:.1f} mm", color='red')
+
+    # Add maximum load lines
+    plt.axhline(y=P_max_ground_handling / 1e6, color='blue', linestyle='--')
+    plt.text(5, (P_max_ground_handling / 1e6) + 0.2, "Max GH Load", color='blue')
+
+    plt.axhline(y=P_max_landing / 1e6, color='green', linestyle='--')
+    plt.text(5, (P_max_landing / 1e6) + 0.2, "Max Landing Load", color='green')
+
+    # Add limit landing stroke
+    plt.axvline(x=limit_stroke_m * 1000, color='purple', linestyle='--')
+    plt.text(limit_stroke_m * 1000 + 10, 18, "Limit Stroke", color='purple', rotation=90, verticalalignment='center')
+
     plt.xlabel("Shock Absorber Compression (mm)")
     plt.ylabel("Gas Pressure (MPa)")
     plt.title("Oleo-Pneumatic Spring Curve (Isothermal)")
     plt.grid(True)
-    plt.legend()
+
+    # Add information box
+    textstr = '\n'.join((
+        f'Breakout Pressure: {P_0 / 1e6:.2f} MPa',
+        f'Static Pressure: {P_1 / 1e6:.2f} MPa',
+        f'Max Pressure: {P_2 / 1e6:.2f} MPa',
+        f'Compression Ratio: {V_0 / V_2:.2f}',
+        f'Piston Diameter: {d_corrected*1000:.1f} mm'
+    ))
+
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    plt.gca().text(0.05, 0.95, textstr, transform=plt.gca().transAxes, fontsize=10,
+                   verticalalignment='top', horizontalalignment='left', bbox=props)
+
     plt.tight_layout()
     plt.show()
     return P_0, P_1, P_2, x_static, d_corrected

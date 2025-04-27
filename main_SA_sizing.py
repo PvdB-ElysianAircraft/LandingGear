@@ -37,6 +37,7 @@ _, _, _, _, d_corrected = oleo_pneumatic_sizing(
     shock_absorber_travel_m=0.6,
     num_gear_legs=2,
     max_load_factor = 1.7,
+    limit_stroke_m=0.500,
     static_pressure=13.0E6,
     breakout_load_fraction=0.17
 )
@@ -52,8 +53,9 @@ _, _, _, _, d_corrected = oleo_pneumatic_sizing(
     shock_absorber_travel_m=0.5,
     num_gear_legs=1,
     max_load_factor=2.2,
+    limit_stroke_m=0.450,
     static_pressure=13.0E6,
-    breakout_load_fraction=0.17
+    breakout_load_fraction=0.15
 )
 
 print('NLG piston diameter: %.2f'%d_corrected)
